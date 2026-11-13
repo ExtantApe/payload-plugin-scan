@@ -2,7 +2,7 @@
 
 ## 0.1.0 (unreleased)
 
-First version, from design 0001 with the Plugins Lead's review: scan-link answers by who is signed in with no probing, rate limits, a JSON endpoint, kinds from other plugins, the sign-in page that keeps the link's fragment, and the client Scanner, CameraScanButton and useScanner with typed and USB entry, repeat suppression, an in-memory offline queue and accessible announcements.
+First version, from design 0001 after review: scan-link answers by who is signed in with no probing, rate limits, a JSON endpoint, kinds from other plugins, the sign-in page that keeps the link's fragment, and the client Scanner, CameraScanButton and useScanner with typed and USB entry, repeat suppression, an in-memory offline queue and accessible announcements.
 
 After the security read: the fragment kept as a fragment through sign-in, a browser-accurate off-site check, equal calls for real and missing codes, no table growth under a flood, and no double decoding.
 

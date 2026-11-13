@@ -1,8 +1,8 @@
 # Test audit
 
-Kept by this repo's owning session, per `~/Code/CLAUDE.md`, "Test self-audits". Newest first.
+Kept by this repo's maintainers: after each feature or fix, and at least every 14 days while it changes. Newest first.
 
-## 2026-11-10: 0.1.0 (K291)
+## 2026-11-10: 0.1.0
 
 | Promise | Test |
 | --- | --- |

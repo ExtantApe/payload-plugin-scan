@@ -1,6 +1,6 @@
 # 0001: Scan design record
 
-Status: **built** (2026-11-10), 0.1.0, task K291. Changes since this record: signed-out scans never look anything up, so there's no client-address limit; a hidden `scan-attempts` collection holds the per-person rate limit; the endpoint also answers `{ nothingHere: true }`; and `ScanSignIn` keeps the fragment as the sign-in link's own fragment. See docs/decisions.md.
+Status: **built** (2026-11-10), 0.1.0. Changes since this record: signed-out scans never look anything up, so there's no client-address limit; a hidden `scan-attempts` collection holds the per-person rate limit; the endpoint also answers `{ nothingHere: true }`; and `ScanSignIn` keeps the fragment as the sign-in link's own fragment. See docs/decisions.md.
 
 ## Context
 
@@ -18,15 +18,15 @@ The planned kit work adds two more things:
   who's signed in;
 - a camera button for Kitting's packing station.
 
-Name approved by the owner on 2026-11-10 (`~/Code/ops/plugin-names.md`): **Scan**, `@extantape/payload-plugin-scan`,
-tags barcode and qr. Agnostic under D2: no imports of Kitting, Sample Kits or any other plugin of ours.
+Name approved by the owner on 2026-11-10: **Scan**, `@extantape/payload-plugin-scan`,
+tags barcode and qr. Agnostic, under the owner's rule for plugins: no imports of Kitting, Sample Kits or any other plugin of ours.
 
 ## Decision
 
 Scan owns **reading codes** and **answering scan links**. What a code means belongs to whoever registers it.
 
-MIT, as a general Payload plugin. Public from its first push, after the audit (D5); the `gh repo create … --public`
-command goes to Helm. 0.x until it has seen real use.
+MIT, as a general Payload plugin. Public from its first push, after the audit, which the
+owner approves. 0.x until it has seen real use.
 
 ## 1. Reading codes (client)
 
@@ -97,8 +97,8 @@ signed out.
   address when signed out. The address comes from a `clientAddress(req)` option, as in Sign-up: never the first
   `x-forwarded-for` entry, which can be faked. On Vercel the site passes `x-real-ip`.
 - **Nothing is logged** with the code next to a person. A count of refusals per kind is enough for abuse alerts.
-- **A secret never travels in a scan link.** The kit bag's activation QR carries its secret in the link's fragment
-  (D13), which browsers don't send to servers. Scan never sees it, and the activation wizard reads it in the browser.
+- **A secret never travels in a scan link.** The kit bag's activation QR carries its secret in the link's fragment,
+  which browsers don't send to servers. Scan never sees it, and the activation wizard reads it in the browser.
 - **The fragment across sign-in.** A signed-out buyer scans the bag QR and gets "Sign in". Server-side return URLs
   never carry a fragment, so Scan's "Sign in" page owns keeping it:
   - its own small script copies `location.hash` onto the return URL's fragment;
@@ -125,7 +125,7 @@ signed out.
 - **Kitting** gets `CameraScanButton` by its import-map path.
 - **Wizards** (`payload-plugin-wizards`) can use `<Scanner>` or `CameraScanButton` in a step (the wizard's "find the
   kit"), named by path in the step's config.
-- **No collections**, so nothing goes to Seed World (D8).
+- **No collections**, so the site's seed data needn't change.
 
 ## Tests
 
@@ -143,8 +143,8 @@ signed out.
   typing (component tests with a fake detector).
 - **A browser check at 375px:** big targets, the live region announces, keyboard only.
 
-## Agreed (Plugins Lead, 2026-11-10)
+## Agreed (2026-11-10)
 
 - **One provider per kind.** Registering a kind twice is an error at startup.
 - **A `terminators` option,** Enter and Tab by default.
-- **Kitting takes `cameraComponent` as an import-map path** when it builds the station (its K10).
+- **Kitting takes `cameraComponent` as an import-map path** when it builds the station.

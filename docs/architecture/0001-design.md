@@ -4,7 +4,7 @@ Status: **built** (2026-11-10), 0.1.0. Changes since this record: signed-out sca
 
 ## Context
 
-The Captive Origins site scans in three places: receiving stock, packing, and kit activation. The scanner is one
+The first site scans in three places: receiving stock, packing, and kit activation. The scanner is one
 component, `src/components/Kits/Scanner.tsx` (about 280 lines), and it does the following:
 - reads codes continuously from the camera: Code 128 (tube barcodes) and QR (slips and labels);
 - uses the browser's native `BarcodeDetector` where there is one, and otherwise the ZXing WebAssembly reader, served

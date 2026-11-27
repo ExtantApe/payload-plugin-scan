@@ -7,8 +7,12 @@ export type ID = string | number
 export type ScanKind = {
   /** Checked before any lookup. A code that doesn't match is treated exactly like one that doesn't exist. */
   pattern: RegExp
-  /** The site or scope a code belongs to, or null when there's no such code. Leave out on a single-site install. */
-  scopeOf?: (args: { code: string; req: Req; payload: Payload }) => Promise<ID | null>
+  /**
+   * The site or scope a code belongs to, or null when there's no such code. Only a non-empty string or a whole
+   * number of 1 or more counts as a site. Leave out (or set to `false`) on a single-site install. Anything else
+   * stops start-up.
+   */
+  scopeOf?: ((args: { code: string; req: Req; payload: Payload }) => Promise<ID | null>) | false
   /** Is this person staff for this kind, in this scope (null: in any scope)? Throwing counts as no. */
   isStaff: (args: { user: Record<string, unknown>; scope: ID | null; req: Req; payload: Payload }) => Promise<boolean>
   /** Where this person may go for this code, or null when there's nothing they may see. */

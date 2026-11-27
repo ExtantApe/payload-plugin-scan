@@ -2,6 +2,20 @@
 
 Kept by this repo's maintainers: after each feature or fix, and at least every 14 days while it changes. Newest first.
 
+## 2026-11-26: the second security read
+
+| Promise | Test |
+| --- | --- |
+| A code with no site, or an undefined site, never makes anyone staff | `what the security read found > never tells resolve…` (2) |
+| Loose site answers (`''`, blank, `0`, `-1`, `1.5`, `NaN`, `false`, a list, an object) never count as a site, against a host whose isStaff treats a falsy scope as any site | `what the security read found > never counts a loose site answer…` |
+| /g, /y and /gy patterns accept a good code on every scan | `what the security read found > accepts a good code…` |
+| A frozen pattern, plain or /g, still matches (it threw before, so every scan answered quietly) | `what the security read found > works with a frozen pattern…` |
+| A non-function `scopeOf` stops start-up; `false` and leaving it out are accepted | `what the security read found > refuses to start with a scopeOf…` |
+| A flood adds no rows past the limit | `what the security read found > doesn’t grow the attempts table…` |
+| An odd code in the URL answers without an error; unknown kinds are labeled unknown | `what the security read found > answers an odd code…` |
+
+Gaps skipped: a burst of truly simultaneous lookups (rows can exceed the limit for an instant, documented in the README, and the let-through count is bounded by the code's own check). Staff telling a throwing `scopeOf` apart from a missing code is a known limit, staff-only. Loose `users` and `onRefusal` options are not yet checked at start-up; noted for the next pass.
+
 ## 2026-11-10: 0.1.0
 
 | Promise | Test |

@@ -3,7 +3,7 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server'
 import { buildConfig, getPayload, handleEndpoints, type Config, type Payload } from 'payload'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { onSite, resolveScan, scanPlugin, type KindRegistration, type ScanKind } from '../src/index.js'
+import { kindsOf, onSite, resolveScan, scanPlugin, type KindRegistration, type ScanKind } from '../src/index.js'
 
 // Made-up kits on two made-up sites. A kit belongs to a site and maybe a buyer.
 type Doc = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -86,7 +86,7 @@ describe('the answer table', () => {
 
   it('never asks the provider about a malformed code', async () => {
     let asked = 0
-    const counting: ScanKind = { ...kitKind, resolve: async (a) => ((asked++, kitKind.resolve(a))) , scopeOf: async (a) => ((asked++, kitKind.scopeOf!(a))) }
+    const counting: ScanKind = { ...kitKind, resolve: async (a) => ((asked++, kitKind.resolve(a))) , scopeOf: async (a) => ((asked++, (kitKind.scopeOf as Exclude<ScanKind['scopeOf'], false | undefined>)(a))) }
     const p = await getPayload({ key: 'count', config: await buildConfig({ secret: 's', telemetry: false, typescript: { autoGenerate: false }, db: mongooseAdapter({ url: mongo.getUri('scan-count'), ensureIndexes: true }), collections: [{ slug: 'users', auth: true, fields: [] }], plugins: [scanPlugin({ kinds: { k: counting } })] }) } as never)
     for (const code of ['bad', '1'.repeat(13), 'x'.repeat(500)]) await resolveScan(p, { kind: 'k', code, req: { user: person() as never, payload: p } })
     expect(asked).toBe(0)
@@ -151,6 +151,72 @@ describe('what the security read found', () => {
     await resolveScan(p, { kind: 'k', code: '999999999999', req: { user: person({ staffOf: ['A'] }) as never, payload: p } })
     expect(seen).toEqual([false])
     await p.destroy()
+  })
+
+  it('never tells resolve a person is staff when the site comes back undefined', async () => {
+    const seen: boolean[] = []
+    const loose: ScanKind = {
+      ...kitKind,
+      scopeOf: async () => undefined as never,
+      isStaff: async ({ user, scope }) => ((user.staffOf as string[] | undefined) ?? []).length > 0 && (scope == null || (user.staffOf as string[]).includes(String(scope))),
+      resolve: async (a) => (seen.push(a.staff), a.staff ? { to: `/kits/${a.code}` } : null),
+    }
+    const p = await getPayload({ key: 'loose', config: await buildConfig({ secret: 's', telemetry: false, typescript: { autoGenerate: false }, db: mongooseAdapter({ url: mongo.getUri('scan-loose'), ensureIndexes: true }), collections: [{ slug: 'users', auth: true, fields: [] }], plugins: [scanPlugin({ kinds: { k: loose } })] }) } as never)
+    const answer = await resolveScan(p, { kind: 'k', code: '100000000003', req: { user: person({ staffOf: ['B'] }) as never, payload: p } })
+    expect(seen).toEqual([false])
+    expect(answer).not.toEqual({ outcome: 'to', to: '/kits/100000000003' })
+    await p.destroy()
+  })
+
+  it('accepts a good code on every scan when the pattern has the g or y flag', async () => {
+    for (const flags of ['g', 'y', 'gy']) {
+      const k: ScanKind = { ...kitKind, pattern: new RegExp('^\\d{12}$', flags) }
+      const p = await getPayload({ key: `flags-${flags}`, config: await buildConfig({ secret: 's', telemetry: false, typescript: { autoGenerate: false }, db: mongooseAdapter({ url: mongo.getUri(`scan-flags-${flags}`), ensureIndexes: true }), collections: [{ slug: 'users', auth: true, fields: [] }], plugins: [scanPlugin({ kinds: { k } })] }) } as never)
+      const staff = person({ staffOf: ['A'] })
+      for (let i = 0; i < 3; i++) expect(await resolveScan(p, { kind: 'k', code: '100000000001', req: { user: staff as never, payload: p } }), `${flags} scan ${i}`).toEqual({ outcome: 'to', to: '/kits/100000000001' })
+      await p.destroy()
+    }
+  })
+
+  it('never counts a loose site answer as a site, so staff of one site can’t reach another site’s record', async () => {
+    // A host whose isStaff treats any falsy scope as "any site" would let these through without the strict read.
+    for (const [i, odd] of (['', '  ', 0, -1, 1.5, Number.NaN, false, ['B'], { id: 'B' }] as unknown[]).entries()) {
+      const seen: boolean[] = []
+      const k: ScanKind = {
+        ...kitKind,
+        scopeOf: async () => odd as never,
+        isStaff: async ({ user, scope }) => (!scope ? true : ((user.staffOf as string[]) ?? []).includes(String(scope))),
+        resolve: async (a) => (seen.push(a.staff), a.staff ? { to: `/kits/${a.code}` } : null),
+      }
+      const p = await getPayload({ key: `odd-${i}`, config: await buildConfig({ secret: 's', telemetry: false, typescript: { autoGenerate: false }, db: mongooseAdapter({ url: mongo.getUri(`scan-odd-${i}`), ensureIndexes: true }), collections: [{ slug: 'users', auth: true, fields: [] }], plugins: [scanPlugin({ kinds: { k } })] }) } as never)
+      try {
+        const answer = await resolveScan(p, { kind: 'k', code: '100000000001', req: { user: person({ staffOf: ['B'] }) as never, payload: p } })
+        expect(seen, JSON.stringify(odd)).toEqual([false])
+        expect(answer, JSON.stringify(odd)).toEqual({ outcome: 'notFound' })
+      } finally {
+        await p.destroy()
+      }
+    }
+  })
+
+  it('works with a frozen pattern, with or without the g flag', async () => {
+    for (const flags of ['', 'g']) {
+      const k: ScanKind = { ...kitKind, pattern: Object.freeze(new RegExp('^\\d{12}$', flags)) }
+      const p = await getPayload({ key: `frozen-${flags}`, config: await buildConfig({ secret: 's', telemetry: false, typescript: { autoGenerate: false }, db: mongooseAdapter({ url: mongo.getUri(`scan-frozen-${flags}`), ensureIndexes: true }), collections: [{ slug: 'users', auth: true, fields: [] }], plugins: [scanPlugin({ kinds: { k } })] }) } as never)
+      try {
+        const staff = person({ staffOf: ['A'] })
+        for (let i = 0; i < 2; i++) expect(await resolveScan(p, { kind: 'k', code: '100000000001', req: { user: staff as never, payload: p } }), `${flags} scan ${i}`).toEqual({ outcome: 'to', to: '/kits/100000000001' })
+      } finally {
+        await p.destroy()
+      }
+    }
+  })
+
+  it('refuses to start with a scopeOf that isn’t a function, and accepts false for a single site', () => {
+    const fake = (scopeOf: unknown) => ({ config: { custom: { scan: { kinds: { k: { ...kitKind, scopeOf } } } } } }) as never
+    for (const bad of ['site', 1, true, null, {}]) expect(() => kindsOf(fake(bad)), String(bad)).toThrow(/scopeOf/)
+    expect(() => kindsOf(fake(false))).not.toThrow()
+    expect(() => kindsOf(fake(undefined))).not.toThrow()
   })
 
   it('doesn’t grow the attempts table past the limit when someone floods it', async () => {

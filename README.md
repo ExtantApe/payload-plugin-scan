@@ -2,7 +2,7 @@
 
 Scan for Payload: read barcodes and QR codes with a phone camera or a USB scanner, and answer scan links by who is signed in, without letting codes be probed.
 
-**Status:** 0.1.0, not on npm yet. 44 tests pass. 14 are server tests, on Payload 3.92 with an in-memory MongoDB replica set: the answer table, no probing, rate limits, refusals and the JSON endpoint. 30 are component and page tests in jsdom, with a fake camera and a fake detector. Nothing has run on a real camera or in a real browser yet, and no site uses it.
+**Status:** 0.1.0, not on npm yet. 49 tests pass. 19 are server tests, on Payload 3.92 with an in-memory MongoDB replica set: the answer table, no probing, rate limits, refusals, the JSON endpoint, strict site answers and frozen or /g patterns. 30 are component and page tests in jsdom, with a fake camera and a fake detector. Nothing has run on a real camera or in a real browser yet, and no site uses it.
 
 ## What it does
 
@@ -26,10 +26,10 @@ A **kind** is a short name a provider registers, for links like `…/k/<code>`. 
 Over the rate limit, everyone signed in gets the quiet "Nothing here" page, staff included.
 
 - **No probing.** For anyone but staff in that site, unknown, forbidden and malformed codes get the same answer. Signed-out scans never look anything up. A malformed code never reaches the provider. A real code and a missing one make the same calls, so timing says little (not measured, so not promised).
-- **Rate limits:** 30 lookups a minute per signed-in person (`perMinute`). Over the limit, the answer is the same quiet page, and nothing more is stored, so a flood can't grow the table.
+- **Rate limits:** 30 lookups a minute per signed-in person (`perMinute`). Over the limit, the answer is the same quiet page and no row is added, so a steady flood can't grow the table. When many lookups arrive at the same instant, a few more rows than the limit can be stored before the count catches up, but no more than `perMinute` of them are let through.
 - **Fails closed:** a provider that fails, or a lookup that can't be checked, answers as if the code didn't exist for that person.
 - **Never sends anyone off the site:** an answer is resolved the way a browser would, and refused unless it stays on your site (`//x`, `/\x` and paths with tabs or newlines are refused).
-- **On a multi-site install, give every kind `scopeOf`.** Without it, staff of any site count as staff for every code.
+- **On a multi-site install, give every kind `scopeOf`.** Without it, staff of any site count as staff for every code. Only a non-empty string or a whole number of 1 or more counts as a site. Any other answer (`''`, `0`, `false`, a list) means the code has no site, so nobody is staff for it. A `scopeOf` set to anything but a function or `false` stops start-up.
 - **Nothing is logged** with the code next to a person. `onRefusal` gets the kind and the outcome only, for abuse alerts.
 - **For apps,** `GET /api/scan/:kind/:code` gives the same answers as JSON, never cached: `{ to }`, `{ signIn: true }`, `{ nothingHere: true }` or `{ notFound: true }`.
 - **Other plugins register kinds** at `config.custom.scanKinds` (`[{ owner, kinds }]`), with no import, in any plugin order. A kind registered twice stops the site at start-up.

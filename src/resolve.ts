@@ -10,6 +10,13 @@ const configOf = (payload: Payload): Resolved => {
   return o
 }
 
+/**
+ * The site a code belongs to, read strictly: a non-empty string or a whole number of 1 or more. Anything else
+ * (`''`, `0`, `NaN`, `false`, a list, an object, undefined) means no site, so nobody counts as staff here.
+ */
+export const siteOf = (scope: unknown): ID | null =>
+  typeof scope === 'string' ? (scope.trim() === '' ? null : scope) : typeof scope === 'number' && Number.isSafeInteger(scope) && scope >= 1 ? scope : null
+
 /** Every kind: the site's own and those other plugins registered at `config.custom.scanKinds`. One owner per kind. */
 export function kindsOf(payload: Payload): Record<string, ScanKind> {
   const o = configOf(payload)
@@ -20,6 +27,7 @@ export function kindsOf(payload: Payload): Record<string, ScanKind> {
       if (owner[k]) throw new Error(`Scan: the kind "${k}" is registered by both ${owner[k]} and ${who}. One provider per kind.`)
       if (!/^[a-z][a-z0-9-]{0,15}$/.test(k)) throw new Error(`Scan: "${k}" isn't a usable kind: lowercase letters, digits and hyphens, up to 16.`)
       if (!(v?.pattern instanceof RegExp) || typeof v.isStaff !== 'function' || typeof v.resolve !== 'function') throw new Error(`Scan: the kind "${k}" from ${who} needs pattern, isStaff and resolve.`)
+      if (v.scopeOf !== undefined && v.scopeOf !== false && typeof v.scopeOf !== 'function') throw new Error(`Scan: the kind "${k}" from ${who} has a scopeOf that isn't a function.`)
       owner[k] = who
       all[k] = v
     }
@@ -90,8 +98,9 @@ export async function resolveScan(payload: Payload, args: { kind: string; code: 
     if (!(await allowed(payload, key))) return refuse(quiet)
     const kind = Object.hasOwn(kindsOf(payload), args.kind) ? kindsOf(payload)[args.kind]! : null
     const code = typeof args.code === 'string' ? args.code.trim() : ''
-    // A /g or /y pattern remembers where it last matched; start each check from the beginning.
-    const matches = (re: RegExp, text: string) => ((re.lastIndex = 0), re.test(text))
+    // A /g or /y pattern remembers where it last matched, so test a fresh copy without those flags. The host's
+    // pattern is never written to, which also keeps a frozen pattern working.
+    const matches = (re: RegExp, text: string) => (/[gy]/.test(re.flags) ? new RegExp(re.source, re.flags.replace(/[gy]/g, '')) : re).test(text)
     const isStaff = async (scope: ID | null) => {
       try {
         return kind ? (await kind.isStaff({ user: user!, scope, req: args.req, payload })) === true : false
@@ -101,10 +110,10 @@ export async function resolveScan(payload: Payload, args: { kind: string; code: 
     }
     // Malformed codes and unknown kinds get the same answer as codes that don't exist.
     if (!kind || code.length > 200 || !matches(kind.pattern, code)) return refuse((await isStaff(null)) ? { outcome: 'notFound' } : quiet)
-    const scope = kind.scopeOf ? await kind.scopeOf({ code, req: args.req, payload }) : null
+    const scope = kind.scopeOf ? siteOf(await kind.scopeOf({ code, req: args.req, payload })) : null
     // The same calls whether or not the code exists: isStaff is always asked twice, so timing says little.
     const [here, anywhere] = await Promise.all([isStaff(scope), isStaff(null)])
-    const staffHere = kind.scopeOf ? scope != null && here : anywhere
+    const staffHere = kind.scopeOf ? scope !== null && here : anywhere
     const r = await kind.resolve({ code, user: user!, staff: staffHere, req: args.req, payload })
     const to = r && typeof r.to === 'string' ? onSite(r.to) : null
     if (to) return { outcome: 'to', to }

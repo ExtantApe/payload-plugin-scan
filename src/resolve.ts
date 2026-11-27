@@ -90,6 +90,8 @@ export async function resolveScan(payload: Payload, args: { kind: string; code: 
     if (!(await allowed(payload, key))) return refuse(quiet)
     const kind = Object.hasOwn(kindsOf(payload), args.kind) ? kindsOf(payload)[args.kind]! : null
     const code = typeof args.code === 'string' ? args.code.trim() : ''
+    // A /g or /y pattern remembers where it last matched; start each check from the beginning.
+    const matches = (re: RegExp, text: string) => ((re.lastIndex = 0), re.test(text))
     const isStaff = async (scope: ID | null) => {
       try {
         return kind ? (await kind.isStaff({ user: user!, scope, req: args.req, payload })) === true : false
@@ -98,11 +100,11 @@ export async function resolveScan(payload: Payload, args: { kind: string; code: 
       }
     }
     // Malformed codes and unknown kinds get the same answer as codes that don't exist.
-    if (!kind || code.length > 200 || !kind.pattern.test(code)) return refuse((await isStaff(null)) ? { outcome: 'notFound' } : quiet)
+    if (!kind || code.length > 200 || !matches(kind.pattern, code)) return refuse((await isStaff(null)) ? { outcome: 'notFound' } : quiet)
     const scope = kind.scopeOf ? await kind.scopeOf({ code, req: args.req, payload }) : null
     // The same calls whether or not the code exists: isStaff is always asked twice, so timing says little.
     const [here, anywhere] = await Promise.all([isStaff(scope), isStaff(null)])
-    const staffHere = kind.scopeOf ? scope !== null && here : anywhere
+    const staffHere = kind.scopeOf ? scope != null && here : anywhere
     const r = await kind.resolve({ code, user: user!, staff: staffHere, req: args.req, payload })
     const to = r && typeof r.to === 'string' ? onSite(r.to) : null
     if (to) return { outcome: 'to', to }

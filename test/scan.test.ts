@@ -153,6 +153,31 @@ describe('what the security read found', () => {
     await p.destroy()
   })
 
+  it('never tells resolve a person is staff when the site comes back undefined', async () => {
+    const seen: boolean[] = []
+    const loose: ScanKind = {
+      ...kitKind,
+      scopeOf: async () => undefined as never,
+      isStaff: async ({ user, scope }) => ((user.staffOf as string[] | undefined) ?? []).length > 0 && (scope == null || (user.staffOf as string[]).includes(String(scope))),
+      resolve: async (a) => (seen.push(a.staff), a.staff ? { to: `/kits/${a.code}` } : null),
+    }
+    const p = await getPayload({ key: 'loose', config: await buildConfig({ secret: 's', telemetry: false, typescript: { autoGenerate: false }, db: mongooseAdapter({ url: mongo.getUri('scan-loose'), ensureIndexes: true }), collections: [{ slug: 'users', auth: true, fields: [] }], plugins: [scanPlugin({ kinds: { k: loose } })] }) } as never)
+    const answer = await resolveScan(p, { kind: 'k', code: '100000000003', req: { user: person({ staffOf: ['B'] }) as never, payload: p } })
+    expect(seen).toEqual([false])
+    expect(answer).not.toEqual({ outcome: 'to', to: '/kits/100000000003' })
+    await p.destroy()
+  })
+
+  it('accepts a good code on every scan when the pattern has the g or y flag', async () => {
+    for (const flags of ['g', 'y', 'gy']) {
+      const k: ScanKind = { ...kitKind, pattern: new RegExp('^\\d{12}$', flags) }
+      const p = await getPayload({ key: `flags-${flags}`, config: await buildConfig({ secret: 's', telemetry: false, typescript: { autoGenerate: false }, db: mongooseAdapter({ url: mongo.getUri(`scan-flags-${flags}`), ensureIndexes: true }), collections: [{ slug: 'users', auth: true, fields: [] }], plugins: [scanPlugin({ kinds: { k } })] }) } as never)
+      const staff = person({ staffOf: ['A'] })
+      for (let i = 0; i < 3; i++) expect(await resolveScan(p, { kind: 'k', code: '100000000001', req: { user: staff as never, payload: p } }), `${flags} scan ${i}`).toEqual({ outcome: 'to', to: '/kits/100000000001' })
+      await p.destroy()
+    }
+  })
+
   it('doesn’t grow the attempts table past the limit when someone floods it', async () => {
     const flooder = person()
     const count = async () => (await payload.count({ collection: 'scan-attempts' as never, overrideAccess: true })).totalDocs

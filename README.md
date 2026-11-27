@@ -2,7 +2,7 @@
 
 Scan for Payload: read barcodes and QR codes with a phone camera or a USB scanner, and answer scan links by who is signed in, without letting codes be probed.
 
-**Status:** 0.1.0, not on npm yet. 44 tests pass. 14 are server tests, on Payload 3.92 with an in-memory MongoDB replica set: the answer table, no probing, rate limits, refusals and the JSON endpoint. 30 are component and page tests in jsdom, with a fake camera and a fake detector. Nothing has run on a real camera or in a real browser yet, and no site uses it.
+**Status:** 0.1.0, not on npm yet. 64 tests pass. 34 are server tests, on Payload 3.92 with an in-memory MongoDB replica set: the answer table, no probing, rate limits, refusals, odd input, the checks that fail closed, and the JSON endpoint with real sign-in. 30 are component and page tests in jsdom, with a fake camera and a fake detector. Nothing has run on a real camera or in a real browser yet, and no site uses it.
 
 ## What it does
 
